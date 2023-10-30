@@ -41,7 +41,7 @@ ko-login: ko
 .PHONY: ko-publish-controller
 ko-publish-controller: ko-login
 	@LD_FLAGS=$(LD_FLAGS) KOCACHE=$(KOCACHE) KO_DOCKER_REPO=$(FULL_IMG) \
-		$(KO) build . --bare --tags=$(KO_TAGS)
+		$(KO) build ./cmd/ --bare --tags=$(KO_TAGS)
 
 .PHONY: ko-publish-all
 ko-publish-all: ko-publish-controller
