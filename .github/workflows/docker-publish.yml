@@ -24,7 +24,7 @@ jobs:
           GIT_TAG=${GITHUB_REF##*/}
           VERSION=${GIT_TAG##v}
           echo "Extracted version: $VERSION"
-          echo "version=$(echo $VERSION)" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
       - name: Run Trivy vulnerability (Repo)
         uses: aquasecurity/trivy-action@fbd16365eb88e12433951383f5e99bd901fc618f # v0.12.0
         with:

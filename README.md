@@ -1,19 +1,21 @@
-# svc-ingress-propagator
+# Ingress Propagator
 Propagtes Loadbalancer Services as Ingress to Loadbalancer cluster
 
 
 
-# Target Cluster
+# Technical Documentation
 
-Ensure the following is applied on the target cluster:
+## Target Cluster
 
-```
-
-
-```
+Essentially we need a namespace and a serviceaccount on the target cluster.
 
 
-## KubeConfig
+
+
+
+
+## Propagation Cluster
+
 
 
 

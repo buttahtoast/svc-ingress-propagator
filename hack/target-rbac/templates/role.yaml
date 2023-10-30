@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "target-rbac.fullname" $ }}
+  namespace: {{ $.Release.Namespace }}
+rules:
+- apiGroups: [""]
+  resources: ["services", "endpoints"]
+  verbs: ["delete", "create", "update", "get"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses"]
+  verbs: ["delete", "create", "update", "get"]

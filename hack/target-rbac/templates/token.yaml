@@ -1,0 +1,10 @@
+{{- if .Values.serviceAccount.token }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "target-rbac.serviceAccountName" . }}
+  namespace: {{ $.Release.Namespace }}
+  annotations:
+    kubernetes.io/service-account.name: {{ include "target-rbac.serviceAccountName" . }}
+type: kubernetes.io/service-account-token
+{{- end }}
