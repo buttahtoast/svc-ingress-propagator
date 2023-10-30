@@ -78,7 +78,7 @@ func (i *PropagationController) Reconcile(ctx context.Context, request reconcile
 		if err != nil {
 			i.logger.Info("extract propagations from ingress, skipped", "triggered-by", request.NamespacedName, "ingress", fmt.Sprintf("%s/%s", ingress.Namespace, ingress.Name), "error", err)
 		}
-		managedPropagations = append(managedPropagations, *propagations)
+		managedPropagations = append(managedPropagations, propagations)
 	}
 	i.logger.V(3).Info("all propagations", "propagations", managedPropagations)
 

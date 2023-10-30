@@ -16,12 +16,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-var (
-	ing networkingv1.Ingress
-)
-
-func FromIngressToPropagation(ctx context.Context, logger logr.Logger, kubeClient client.Client, ingress networkingv1.Ingress, ingressClass string, identifier string, namespace string) (*propagation.Propagation, error) {
-	var result *propagation.Propagation
+func FromIngressToPropagation(ctx context.Context, logger logr.Logger, kubeClient client.Client, ingress networkingv1.Ingress, ingressClass string, identifier string, namespace string) (propagation.Propagation, error) {
+	result := propagation.Propagation{}
+	ing := networkingv1.Ingress{}
 	result.IsDeleted = false
 
 	if ingress.DeletionTimestamp != nil {
@@ -31,6 +28,11 @@ func FromIngressToPropagation(ctx context.Context, logger logr.Logger, kubeClien
 	// Assign Name
 	result.Name = ingress.Name
 	ing.Name = result.Name
+	ing.SetNamespace(namespace)
+
+	if ingress.Spec.TLS != nil {
+		ing.Spec.TLS = ingress.Spec.TLS
+	}
 
 	// Assign Annotations
 	if ingress.Annotations != nil {
@@ -51,7 +53,7 @@ func FromIngressToPropagation(ctx context.Context, logger logr.Logger, kubeClien
 
 	for _, rule := range ingress.Spec.Rules {
 		if rule.Host == "" {
-			return nil, errors.Errorf("host in ingress %s/%s is empty", ingress.GetNamespace(), ingress.GetName())
+			return result, errors.Errorf("host in ingress %s/%s is empty", ingress.GetNamespace(), ingress.GetName())
 		}
 
 		for _, path := range rule.HTTP.Paths {
@@ -63,11 +65,11 @@ func FromIngressToPropagation(ctx context.Context, logger logr.Logger, kubeClien
 			service := v1.Service{}
 			err := kubeClient.Get(ctx, namespacedName, &service)
 			if err != nil {
-				return nil, errors.Wrapf(err, "fetch service %s", namespacedName)
+				return result, errors.Wrapf(err, "fetch service %s", namespacedName)
 			}
 
 			if service.Status.LoadBalancer.Ingress == nil {
-				return nil, errors.Errorf("service %s has no loadbalancer ip", namespacedName)
+				return result, errors.Errorf("service %s has no loadbalancer ip", namespacedName)
 			}
 
 			if !containsService(services, path.Backend.Service.Name) {
@@ -78,7 +80,7 @@ func FromIngressToPropagation(ctx context.Context, logger logr.Logger, kubeClien
 			if path.Backend.Service.Port.Name != "" {
 				ok, extractedPort := getPortWithName(service.Spec.Ports, path.Backend.Service.Port.Name)
 				if !ok {
-					return nil, errors.Errorf("service %s has no port named %s", namespacedName, path.Backend.Service.Port.Name)
+					return result, errors.Errorf("service %s has no port named %s", namespacedName, path.Backend.Service.Port.Name)
 				}
 				port = extractedPort
 			} else {
@@ -95,23 +97,30 @@ func FromIngressToPropagation(ctx context.Context, logger logr.Logger, kubeClien
 			}
 		}
 	}
+	ing.Spec.Rules = ingress.Spec.Rules
+
 	result.Ingress = ing
 
 	// Load Services and endpoints
-	error := resolveServiceEndpoints(services, result, identifier, namespace)
+	error := resolveServiceEndpoints(services, &result, identifier, namespace)
 	if error != nil {
-		return nil, errors.Wrapf(error, "failed to resolve service endpoints")
+		return result, errors.Wrapf(error, "failed to resolve service endpoints")
 	}
 
 	return result, nil
 }
 
 func resolveServiceEndpoints(services []v1.Service, propagation *propagation.Propagation, identifier string, namespace string) error {
-	for index, oldService := range services {
+	for _, oldService := range services {
+		// Unset any Nodeport
+		for idx := range oldService.Spec.Ports {
+			oldService.Spec.Ports[idx].NodePort = 0
+		}
+
 		// Create new service struct
 		service := v1.Service{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("%s-%d", propagation.Name, index), // Assuming same name, adjust if necessary
+				Name:      oldService.Name, // Assuming same name, adjust if necessary
 				Namespace: namespace,
 				Labels: map[string]string{
 					LabelManaged:    identifier,
@@ -119,6 +128,7 @@ func resolveServiceEndpoints(services []v1.Service, propagation *propagation.Pro
 				},
 			},
 			Spec: v1.ServiceSpec{
+				Type:  "ClusterIP",
 				Ports: oldService.Spec.Ports,
 				// Add other necessary fields
 			},
@@ -163,7 +173,7 @@ func resolveServiceEndpoints(services []v1.Service, propagation *propagation.Pro
 		}
 		propagation.Endpoints = append(propagation.Endpoints, endpoint)
 	}
-
+	fmt.Printf("HIHO %v\n\n", propagation)
 	return nil
 }
 

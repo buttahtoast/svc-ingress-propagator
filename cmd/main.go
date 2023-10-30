@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 
@@ -67,6 +68,10 @@ func main() {
 				logger.Error(err, "unable to set up target client")
 				os.Exit(1)
 			}
+			if options.targetNamespace == "" {
+				logger.Error(fmt.Errorf("target namespace must be defined"), "")
+				os.Exit(1)
+			}
 
 			mgr, err := manager.New(cfg, manager.Options{})
 			if err != nil {
@@ -82,6 +87,7 @@ func main() {
 					IngressClassName:       options.ingressClass,
 					TargetIngressClassName: options.targetIngressClass,
 					ControllerClassName:    options.controllerClass,
+					TargetNamespace:        options.targetNamespace,
 				})
 			if err != nil {
 				return err
