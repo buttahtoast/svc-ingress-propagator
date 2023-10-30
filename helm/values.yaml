@@ -3,7 +3,7 @@
 # Declare variables to be passed into your templates.
 
 # -- instance identifier (Defaults to release name)
-identifier: "honeybee"
+identifier: ""
 
 ingressClass:
   # -- Ingress class name
@@ -16,9 +16,9 @@ ingressClass:
 # Target Configuration
 target:
   # -- IngressClass on target
-  ingressClass: "cloudflare"
+  ingressClass: "propagated"
   # -- Namespaced on target
-  namespace: "ingress-internet"
+  namespace: "ingress-central"
   # -- Target Kubeconfig Secret
   kubeconfig:
     secret:
@@ -28,11 +28,11 @@ target:
 replicaCount: 1
 
 image:
-  registry: docker.io
-  repository: oliverbaehler/dev
+  registry: ghcr.io
+  repository: buttahtoast/svc-ingress-propagator
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "ing"
+  tag: ""
 
 imagePullSecrets: []
 nameOverride: ""
