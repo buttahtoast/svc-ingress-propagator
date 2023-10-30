@@ -52,7 +52,6 @@ jobs:
           main-path: ./cmd/
         env:
           REPOSITORY: ${{ github.repository }}
-          VERSION: ${{ steps.extract_version.outputs.version }}
   generate-provenance:
     needs: publish-images
     permissions:

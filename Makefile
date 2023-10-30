@@ -40,6 +40,7 @@ ko-login: ko
 
 .PHONY: ko-publish-controller
 ko-publish-controller: ko-login
+	@echo Publishing Controller $(FULL_IMG) - $(KO_TAGS) >&2
 	@LD_FLAGS=$(LD_FLAGS) KOCACHE=$(KOCACHE) KO_DOCKER_REPO=$(FULL_IMG) \
 		$(KO) build ./cmd/ --bare --tags=$(KO_TAGS) --push=true
 
