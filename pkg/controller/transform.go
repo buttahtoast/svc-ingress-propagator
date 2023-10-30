@@ -3,7 +3,8 @@ package controller
 import (
 	"context"
 	"fmt"
-	"svc-ingress-propagator/pkg/propagation"
+
+	"github.com/oliverbaehler/svc-ingress-propagator/pkg/propagation"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 

@@ -3,9 +3,9 @@ package controller
 import (
 	"context"
 	"fmt"
-	"svc-ingress-propagator/pkg/propagation"
 
-	cloudflarecontroller "github.com/STRRL/cloudflare-tunnel-ingress-controller/pkg/cloudflare-controller"
+	"github.com/oliverbaehler/svc-ingress-propagator/pkg/propagation"
+
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -18,18 +18,14 @@ import (
 var _ reconcile.Reconciler = &PropagationController{}
 
 type PropagationController struct {
-	logger                 logr.Logger
-	kubeClient             client.Client
-	targetKubeClient       client.Client
-	ingressClassName       string
-	targetIngressClassName string
-	controllerClassName    string
-	identifier             string
-	targetNamespace        string
+	logger           logr.Logger
+	kubeClient       client.Client
+	targetKubeClient client.Client
+	options          PropagationControllerOptions
 }
 
-func NewPropagationController(logger logr.Logger, kubeClient client.Client, ingressClassName string, controllerClassName string, tunnelClient *cloudflarecontroller.TunnelClient) *PropagationController {
-	return &PropagationController{logger: logger, kubeClient: kubeClient, ingressClassName: ingressClassName, controllerClassName: controllerClassName, tunnelClient: tunnelClient}
+func NewPropagationController(logger logr.Logger, kubeClient client.Client, targetKubeClient client.Client, opts PropagationControllerOptions) *PropagationController {
+	return &PropagationController{logger: logger, kubeClient: kubeClient, targetKubeClient: targetKubeClient, options: opts}
 }
 
 func (i *PropagationController) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
@@ -50,8 +46,8 @@ func (i *PropagationController) Reconcile(ctx context.Context, request reconcile
 	if !controlled {
 		i.logger.V(1).Info("ingress is NOT controlled by this controller",
 			"ingress", request.NamespacedName,
-			"controlled-ingress-class", i.ingressClassName,
-			"controlled-controller-class", i.controllerClassName,
+			"controlled-ingress-class", i.options.IngressClassName,
+			"controlled-controller-class", i.options.ControllerClassName,
 		)
 		return reconcile.Result{
 			Requeue: false,
@@ -60,8 +56,8 @@ func (i *PropagationController) Reconcile(ctx context.Context, request reconcile
 
 	i.logger.V(1).Info("ingress is controlled by this controller",
 		"ingress", request.NamespacedName,
-		"controlled-ingress-class", i.ingressClassName,
-		"controlled-controller-class", i.controllerClassName,
+		"controlled-ingress-class", i.options.IngressClassName,
+		"controlled-controller-class", i.options.ControllerClassName,
 	)
 
 	i.logger.Info("update propagations", "triggered-by", request.NamespacedName)
@@ -78,7 +74,7 @@ func (i *PropagationController) Reconcile(ctx context.Context, request reconcile
 
 	var managedPropagations []propagation.Propagation
 	for _, ingress := range ingresses {
-		propagations, err := FromIngressToPropagation(ctx, i.logger, i.kubeClient, ingress, i.targetIngressClassName, i.identifier, i.targetNamespace)
+		propagations, err := FromIngressToPropagation(ctx, i.logger, i.kubeClient, ingress, i.options.TargetIngressClassName, i.options.Identifier, i.options.TargetNamespace)
 		if err != nil {
 			i.logger.Info("extract propagations from ingress, skipped", "triggered-by", request.NamespacedName, "ingress", fmt.Sprintf("%s/%s", ingress.Namespace, ingress.Name), "error", err)
 		}
@@ -103,7 +99,7 @@ func (i *PropagationController) Reconcile(ctx context.Context, request reconcile
 }
 
 func (i *PropagationController) isControlledByThisController(ctx context.Context, target networkingv1.Ingress) (bool, error) {
-	if i.ingressClassName == target.GetAnnotations()[WellKnownIngressAnnotation] {
+	if i.options.IngressClassName == target.GetAnnotations()[WellKnownIngressAnnotation] {
 		return true, nil
 	}
 
@@ -113,7 +109,7 @@ func (i *PropagationController) isControlledByThisController(ctx context.Context
 
 	controlledIngressClasses, err := i.listControlledIngressClasses(ctx)
 	if err != nil {
-		return false, errors.Wrapf(err, "fetch controlled ingress classes with controller name %s", i.controllerClassName)
+		return false, errors.Wrapf(err, "fetch controlled ingress classes with controller name %s", i.options.ControllerClassName)
 	}
 
 	var controlledIngressClassNames []string
@@ -140,7 +136,7 @@ func (i *PropagationController) listControlledIngressClasses(ctx context.Context
 func (i *PropagationController) listControlledIngresses(ctx context.Context) ([]networkingv1.Ingress, error) {
 	controlledIngressClasses, err := i.listControlledIngressClasses(ctx)
 	if err != nil {
-		return nil, errors.Wrapf(err, "fetch controlled ingress classes with controller name %s", i.controllerClassName)
+		return nil, errors.Wrapf(err, "fetch controlled ingress classes with controller name %s", i.options.ControllerClassName)
 	}
 
 	var controlledIngressClassNames []string
@@ -157,7 +153,7 @@ func (i *PropagationController) listControlledIngresses(ctx context.Context) ([]
 
 	for _, ingress := range list.Items {
 		func() {
-			if i.ingressClassName == ingress.GetAnnotations()[WellKnownIngressAnnotation] {
+			if i.options.IngressClassName == ingress.GetAnnotations()[WellKnownIngressAnnotation] {
 				result = append(result, ingress)
 				return
 			}

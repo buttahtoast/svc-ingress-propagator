@@ -2,7 +2,8 @@ package controller
 
 import (
 	"context"
-	"svc-ingress-propagator/pkg/propagation"
+
+	"github.com/oliverbaehler/svc-ingress-propagator/pkg/propagation"
 
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -63,10 +64,10 @@ func (i *PropagationController) propagateEndpoint(ctx context.Context, propagati
 		if prop.IsDeleted {
 			// Delete all releated endpoints
 			selector := labels.Set{
-				LabelManaged:    i.identifier,
+				LabelManaged:    i.options.Identifier,
 				LabelPropagator: prop.Name,
 			}
-			listOptions := client.ListOptions{LabelSelector: labels.SelectorFromSet(selector), Namespace: i.targetNamespace}
+			listOptions := client.ListOptions{LabelSelector: labels.SelectorFromSet(selector), Namespace: i.options.TargetNamespace}
 
 			var endpointsList v1.EndpointsList
 			err := i.targetKubeClient.List(ctx, &endpointsList, &listOptions)
@@ -105,10 +106,10 @@ func (i *PropagationController) propagateService(ctx context.Context, propagatio
 	for _, prop := range propagations {
 		if prop.IsDeleted {
 			selector := labels.Set{
-				LabelManaged:    i.identifier,
+				LabelManaged:    i.options.Identifier,
 				LabelPropagator: prop.Name,
 			}
-			listOptions := client.ListOptions{LabelSelector: labels.SelectorFromSet(selector), Namespace: i.targetNamespace}
+			listOptions := client.ListOptions{LabelSelector: labels.SelectorFromSet(selector), Namespace: i.options.TargetNamespace}
 
 			// List services with the label selector
 			var servicesList v1.ServiceList
