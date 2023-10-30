@@ -3,7 +3,7 @@ package controller
 import (
 	"context"
 
-	"github.com/oliverbaehler/svc-ingress-propagator/pkg/propagation"
+	"github.com/buttahtoast/svc-ingress-propagator/pkg/propagation"
 
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"

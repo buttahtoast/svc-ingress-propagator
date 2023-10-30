@@ -1,4 +1,4 @@
-module github.com/oliverbaehler/svc-ingress-propagator
+module github.com/buttahtoast/svc-ingress-propagator
 
 go 1.20
 

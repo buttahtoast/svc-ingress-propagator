@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/oliverbaehler/svc-ingress-propagator/pkg/propagation"
+	"github.com/buttahtoast/svc-ingress-propagator/pkg/propagation"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"

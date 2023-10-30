@@ -6,9 +6,9 @@ import (
 	"log"
 	"os"
 
+	"github.com/buttahtoast/svc-ingress-propagator/pkg/controller"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/stdr"
-	"github.com/oliverbaehler/svc-ingress-propagator/pkg/controller"
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
