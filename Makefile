@@ -16,6 +16,24 @@ IMG             ?= $(IMG_BASE):$(VERSION)
 FULL_IMG        ?= $(REGISTRY)/$(IMG_BASE)
 
 
+####################
+# -- Docker
+####################
+
+KOCACHE         ?= /tmp/ko-cache
+KO_REGISTRY     := ko.local
+KO_TAGS         ?= "latest"
+ifdef VERSION
+KO_TAGS         := $(KO_TAGS),$(VERSION)
+endif
+
+LD_FLAGS        := "-X main.Version=$(VERSION) \
+					-X main.GitCommit=$(GIT_HEAD_COMMIT) \
+					-X main.GitTag=$(VERSION) \
+					-X main.GitTreeState=$(GIT_MODIFIED) \
+					-X main.BuildDate=$(BUILD_DATE) \
+					-X main.GitRepo=$(GIT_REPO)"
+
 # Docker Image Build
 # ------------------
 
@@ -47,6 +65,40 @@ ko-publish-controller: ko-login
 .PHONY: ko-publish-all
 ko-publish-all: ko-publish-controller
 
+####################
+# -- Helm
+####################
+
+# Helm
+SRC_ROOT = $(shell git rev-parse --show-toplevel)
+
+helm-controller-version:
+	$(eval VERSION := $(shell grep 'appVersion:' helm/Chart.yaml | awk '{print "v"$$2}'))
+	$(eval KO_TAGS := $(shell grep 'appVersion:' helm/Chart.yaml | awk '{print "v"$$2}'))
+
+helm-docs: HELMDOCS_VERSION := v1.11.0
+helm-docs: docker
+	@docker run -v "$(SRC_ROOT):/helm-docs" jnorwood/helm-docs:$(HELMDOCS_VERSION) --chart-search-root /helm-docs
+
+helm-lint: CT_VERSION := v3.3.1
+helm-lint: docker
+	@docker run -v "$(SRC_ROOT):/workdir" --entrypoint /bin/sh quay.io/helmpack/chart-testing:$(CT_VERSION) -c "cd /workdir; ct lint --config .github/configs/ct.yaml  --lint-conf .github/configs/lintconf.yaml  --all --debug"
+
+helm-test: helm-controller-version kind ct ko-build-all
+	@kind create cluster --wait=60s --name ct-helm-svc-ingress-propagator
+	@kind load docker-image --name ct-helm-svc-ingress-propagator $(FULL_IMG):$(VERSION)
+	@ct install --config $(SRC_ROOT)/.github/configs/ct.yaml --all --debug
+	@kind delete cluster --name ct-helm-svc-ingress-propagator
+
+docker:
+	@hash docker 2>/dev/null || {\
+		echo "You need docker" &&\
+		exit 1;\
+	}
+
+####################
+# -- Tools
+####################
 
 KO = $(shell pwd)/bin/ko
 KO_VERSION = v0.14.1
