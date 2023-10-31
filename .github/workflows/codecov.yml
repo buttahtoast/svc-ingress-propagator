@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Check secret
         id: checksecret
-        uses: oliverbaehler/github-actions/exists@8dfd42735c85f6c58d5d4d6f3232cd0e39d1fe73 # v0.1.0
+        uses: oliverbaehler/github-actions/exists@979018716f7d0cbe8d2711f572b350afad4ef211 # v0.1.1
         with:
           value: ${{ secrets.CODECOV_TOKEN }}
       - uses: actions/setup-go@v4
