@@ -62,9 +62,22 @@ func (i *PropagationController) Reconcile(ctx context.Context, request reconcile
 
 	i.logger.Info("update propagations", "triggered-by", request.NamespacedName)
 
-	err = i.attachFinalizer(ctx, *(origin.DeepCopy()))
-	if err != nil {
-		return reconcile.Result{}, errors.Wrapf(err, "attach finalizer to ingress %s", request.NamespacedName)
+	if origin.DeletionTimestamp == nil {
+		err = i.attachFinalizer(ctx, *(origin.DeepCopy()))
+		if err != nil {
+			return reconcile.Result{}, errors.Wrapf(err, "attach finalizer to ingress %s", request.NamespacedName)
+		}
+	} else {
+		if !i.hasFinalizer(ctx, origin) {
+			i.logger.V(1).Info("ingress is being deleted and already finillized by this controller",
+				"ingress", request.NamespacedName,
+				"controlled-ingress-class", i.options.IngressClassName,
+				"controlled-controller-class", i.options.ControllerClassName,
+			)
+			return reconcile.Result{
+				Requeue: false,
+			}, nil
+		}
 	}
 
 	ingresses, err := i.listControlledIngresses(ctx)
@@ -107,14 +120,9 @@ func (i *PropagationController) isControlledByThisController(ctx context.Context
 		return false, nil
 	}
 
-	controlledIngressClasses, err := i.listControlledIngressClasses(ctx)
+	controlledIngressClassNames, err := i.listControlledIngressClasses(ctx)
 	if err != nil {
 		return false, errors.Wrapf(err, "fetch controlled ingress classes with controller name %s", i.options.ControllerClassName)
-	}
-
-	var controlledIngressClassNames []string
-	for _, controlledIngressClass := range controlledIngressClasses {
-		controlledIngressClassNames = append(controlledIngressClassNames, controlledIngressClass.Name)
 	}
 
 	if stringSliceContains(controlledIngressClassNames, *target.Spec.IngressClassName) {
@@ -124,24 +132,28 @@ func (i *PropagationController) isControlledByThisController(ctx context.Context
 	return false, nil
 }
 
-func (i *PropagationController) listControlledIngressClasses(ctx context.Context) ([]networkingv1.IngressClass, error) {
+func (i *PropagationController) listControlledIngressClasses(ctx context.Context) ([]string, error) {
 	list := networkingv1.IngressClassList{}
 	err := i.kubeClient.List(ctx, &list)
 	if err != nil {
 		return nil, errors.Wrap(err, "list ingress classes")
 	}
-	return list.Items, nil
+
+	var controlledNames []string
+	for _, ingressClass := range list.Items {
+		// Check if the IngressClass is controlled by the specified controller
+		if ingressClass.Spec.Controller == i.options.ControllerClassName {
+			controlledNames = append(controlledNames, ingressClass.Name)
+		}
+	}
+
+	return controlledNames, nil
 }
 
 func (i *PropagationController) listControlledIngresses(ctx context.Context) ([]networkingv1.Ingress, error) {
-	controlledIngressClasses, err := i.listControlledIngressClasses(ctx)
+	controlledIngressClassNames, err := i.listControlledIngressClasses(ctx)
 	if err != nil {
 		return nil, errors.Wrapf(err, "fetch controlled ingress classes with controller name %s", i.options.ControllerClassName)
-	}
-
-	var controlledIngressClassNames []string
-	for _, controlledIngressClass := range controlledIngressClasses {
-		controlledIngressClassNames = append(controlledIngressClassNames, controlledIngressClass.Name)
 	}
 
 	var result []networkingv1.Ingress

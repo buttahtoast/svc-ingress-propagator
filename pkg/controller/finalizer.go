@@ -9,6 +9,10 @@ import (
 
 const IngressControllerFinalizer = "svc-ingress-propagator.buttah.cloud/propagated-ingress"
 
+func (i *PropagationController) hasFinalizer(ctx context.Context, ingress networkingv1.Ingress) bool {
+	return stringSliceContains(ingress.Finalizers, IngressControllerFinalizer)
+}
+
 func (i *PropagationController) attachFinalizer(ctx context.Context, ingress networkingv1.Ingress) error {
 	if stringSliceContains(ingress.Finalizers, IngressControllerFinalizer) {
 		return nil

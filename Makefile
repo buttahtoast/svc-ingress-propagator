@@ -21,7 +21,6 @@ FULL_IMG        ?= $(REGISTRY)/$(IMG_BASE)
 ####################
 
 KOCACHE         ?= /tmp/ko-cache
-KO_REGISTRY     := ko.local
 KO_TAGS         ?= "latest"
 ifdef VERSION
 KO_TAGS         := $(KO_TAGS),$(VERSION)

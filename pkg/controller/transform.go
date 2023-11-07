@@ -27,26 +27,19 @@ func FromIngressToPropagation(ctx context.Context, logger logr.Logger, kubeClien
 
 	// Assign Name
 	result.Name = ingress.Name
-	ing.Name = result.Name
-	ing.SetNamespace(namespace)
+	ingress.SetNamespace(namespace)
 
 	if ingress.Spec.TLS != nil {
 		ing.Spec.TLS = ingress.Spec.TLS
 	}
 
-	// Assign Annotations
-	if ingress.Annotations != nil {
-		ing.Annotations = ingress.Annotations
-	}
 	// Assign Labels
-	if ingress.Labels != nil {
-		ing.Labels = ingress.Labels
-	} else {
-		ing.Labels = make(map[string]string)
+	if ingress.Labels == nil {
+		ingress.Labels = make(map[string]string)
 	}
-	ing.Labels[LabelManaged] = identifier
+	ingress.Labels[LabelManaged] = identifier
 
-	ing.Spec.IngressClassName = &ingressClass
+	ingress.Spec.IngressClassName = &ingressClass
 
 	// Store relevant Services
 	var services []v1.Service
@@ -97,9 +90,7 @@ func FromIngressToPropagation(ctx context.Context, logger logr.Logger, kubeClien
 			}
 		}
 	}
-	ing.Spec.Rules = ingress.Spec.Rules
-
-	result.Ingress = ing
+	result.Ingress = ingress
 
 	// Load Services and endpoints
 	error := resolveServiceEndpoints(services, &result, identifier, namespace)
