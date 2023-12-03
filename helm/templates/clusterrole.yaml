@@ -5,27 +5,36 @@ metadata:
   labels:
     {{- include "helm.labels" . | nindent 4 }}
 rules:
-  - apiGroups:
-      - ""
-    resources:
-      - services
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - networking.k8s.io
-    resources:
-      - ingresses
-      - ingressclasses
-    verbs:
-      - get
-      - list
-      - watch
-      - update
-  - apiGroups:
-      - networking.k8s.io
-    resources:
-      - ingresses/status
-    verbs:
-      - update
+- apiGroups:
+    - ""
+  resources:
+    - services
+  verbs:
+    - get
+    - list
+    - watch
+- apiGroups:
+    - networking.k8s.io
+  resources:
+    - ingresses
+    - ingressclasses
+  verbs:
+    - get
+    - list
+    - watch
+    - update
+- apiGroups:
+    - ""
+  resources:
+    - events
+  verbs:
+    - list
+    - update
+    - create
+    - patch
+- apiGroups:
+    - networking.k8s.io
+  resources:
+    - ingresses/status
+  verbs:
+    - update

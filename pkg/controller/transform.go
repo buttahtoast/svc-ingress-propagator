@@ -9,95 +9,124 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func FromIngressToPropagation(ctx context.Context, logger logr.Logger, kubeClient client.Client, ingress networkingv1.Ingress, ingressClass string, identifier string, namespace string) (propagation.Propagation, error) {
-	result := propagation.Propagation{}
-	ing := networkingv1.Ingress{}
-	result.IsDeleted = false
+func (i *PropagationController) FromIngressToPropagation(ctx context.Context, logger logr.Logger, kubeClient client.Client, ingress networkingv1.Ingress) (propagation.Propagation, error) {
+	result := propagation.Propagation{
+		Name:           ingress.Name,
+		PropagatedName: fmt.Sprintf("%s-%s", i.Options.Identifier, ingress.Name),
+		IsDeleted:      false,
+		Ingress: networkingv1.Ingress{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("%s-%s", i.Options.Identifier, ingress.Name),
+				Namespace: i.Options.TargetNamespace,
+			},
+		},
+		Origin: ingress,
+	}
 
 	if ingress.DeletionTimestamp != nil {
 		result.IsDeleted = true
-	}
+	} else {
 
-	// Assign Name
-	result.Name = ingress.Name
-	ingress.SetNamespace(namespace)
+		// Assign Labels
+		result.Ingress.Labels = make(map[string]string)
+		if ingress.Labels != nil {
+			result.Ingress.Labels = ingress.Labels
+		}
+		result.Ingress.Labels[LabelManaged] = i.Options.Identifier
 
-	if ingress.Spec.TLS != nil {
-		ing.Spec.TLS = ingress.Spec.TLS
-	}
-
-	// Assign Labels
-	if ingress.Labels == nil {
-		ingress.Labels = make(map[string]string)
-	}
-	ingress.Labels[LabelManaged] = identifier
-
-	ingress.Spec.IngressClassName = &ingressClass
-
-	// Store relevant Services
-	var services []v1.Service
-
-	for _, rule := range ingress.Spec.Rules {
-		if rule.Host == "" {
-			return result, errors.Errorf("host in ingress %s/%s is empty", ingress.GetNamespace(), ingress.GetName())
+		// Annotations
+		result.Ingress.Annotations = make(map[string]string)
+		if ingress.Annotations != nil {
+			result.Ingress.Annotations = ingress.Annotations
 		}
 
-		for _, path := range rule.HTTP.Paths {
+		result.Ingress.Spec.IngressClassName = &i.Options.TargetIngressClassName
 
-			namespacedName := types.NamespacedName{
-				Namespace: ingress.GetNamespace(),
-				Name:      path.Backend.Service.Name,
-			}
-			service := v1.Service{}
-			err := kubeClient.Get(ctx, namespacedName, &service)
-			if err != nil {
-				return result, errors.Wrapf(err, "fetch service %s", namespacedName)
-			}
+		// Store relevant Services
+		var hosts []string
+		var services []v1.Service
 
-			if service.Status.LoadBalancer.Ingress == nil {
-				return result, errors.Errorf("service %s has no loadbalancer ip", namespacedName)
+		for r := range ingress.Spec.Rules {
+			rule := &ingress.Spec.Rules[r]
+			if rule.Host == "" {
+				return result, fmt.Errorf("host in ingress %s/%s is empty", ingress.GetNamespace(), ingress.GetName())
 			}
 
-			if !containsService(services, path.Backend.Service.Name) {
-				services = append(services, service)
-			}
+			for p := range rule.HTTP.Paths {
+				path := &rule.HTTP.Paths[p]
 
-			var port int32
-			if path.Backend.Service.Port.Name != "" {
-				ok, extractedPort := getPortWithName(service.Spec.Ports, path.Backend.Service.Port.Name)
-				if !ok {
-					return result, errors.Errorf("service %s has no port named %s", namespacedName, path.Backend.Service.Port.Name)
+				namespacedName := types.NamespacedName{
+					Namespace: ingress.GetNamespace(),
+					Name:      path.Backend.Service.Name,
 				}
-				port = extractedPort
-			} else {
-				port = path.Backend.Service.Port.Number
-			}
+				service := v1.Service{}
+				err := kubeClient.Get(ctx, namespacedName, &service)
+				if err != nil {
+					return result, fmt.Errorf("fetch service %s: %s", namespacedName, err)
+				}
 
-			path.Backend = networkingv1.IngressBackend{
-				Service: &networkingv1.IngressServiceBackend{
-					Name: result.Name,
-					Port: networkingv1.ServiceBackendPort{
-						Number: port,
+				if service.Status.LoadBalancer.Ingress == nil {
+					return result, fmt.Errorf("service %s has no loadbalancer ip", namespacedName)
+				}
+
+				var port int32
+				if path.Backend.Service.Port.Name != "" {
+					ok, extractedPort := getPortWithName(service.Spec.Ports, path.Backend.Service.Port.Name)
+					if !ok {
+						return result, fmt.Errorf("service %s has no port named %s", namespacedName, path.Backend.Service.Port.Name)
+					}
+					port = extractedPort
+				} else {
+					port = path.Backend.Service.Port.Number
+				}
+
+				service.ObjectMeta.Name = result.PropagatedName
+				if !containsService(services, path.Backend.Service.Name) {
+					services = append(services, service)
+				}
+
+				path.Backend = networkingv1.IngressBackend{
+					Service: &networkingv1.IngressServiceBackend{
+						Name: result.PropagatedName,
+						Port: networkingv1.ServiceBackendPort{
+							Number: port,
+						},
 					},
-				},
+				}
 			}
+			result.Ingress.Spec.Rules = append(result.Ingress.Spec.Rules, *rule)
+			hosts = append(hosts, rule.Host)
+		}
+
+		// Add TLS information
+		if (i.Options.TLSrespect) && (ingress.Spec.TLS != nil) {
+			result.Ingress.Spec.TLS = ingress.Spec.TLS
+		}
+
+		if i.Options.TargetIssuerName != "" {
+			if i.Options.TargetIssuerNamespaced {
+				result.Ingress.Annotations[IssuerNamespacedAnnotation] = i.Options.TargetIssuerName
+			} else {
+				result.Ingress.Annotations[IssuerClusterAnnotation] = i.Options.TargetIssuerName
+			}
+			result.Ingress.Spec.TLS = append(result.Ingress.Spec.TLS, networkingv1.IngressTLS{
+				Hosts:      hosts,
+				SecretName: result.PropagatedName,
+			})
+		}
+
+		// Load Services and endpoints
+		err := resolveServiceEndpoints(services, &result, i.Options.Identifier, i.Options.TargetNamespace)
+		if err != nil {
+			return result, fmt.Errorf("failed to resolve service endpoints: %s", err)
 		}
 	}
-	result.Ingress = ingress
-
-	// Load Services and endpoints
-	error := resolveServiceEndpoints(services, &result, identifier, namespace)
-	if error != nil {
-		return result, errors.Wrapf(error, "failed to resolve service endpoints")
-	}
-
 	return result, nil
 }
 
@@ -164,7 +193,7 @@ func resolveServiceEndpoints(services []v1.Service, propagation *propagation.Pro
 		}
 		propagation.Endpoints = append(propagation.Endpoints, endpoint)
 	}
-	fmt.Printf("HIHO %v\n\n", propagation)
+
 	return nil
 }
 

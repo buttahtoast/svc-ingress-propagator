@@ -19,6 +19,12 @@ target:
   ingressClass: "propagated"
   # -- Namespaced on target
   namespace: "ingress-central"
+  # Target Issuer
+  issuer:
+    # -- Issuer name on target cluster
+    name: ""
+    # -- Whether the issuer is namespaced on target cluster
+    namespaced: false
   # -- Target Kubeconfig Secret
   kubeconfig:
     secret:
@@ -59,6 +65,19 @@ securityContext: {}
   # readOnlyRootFilesystem: true
   # runAsNonRoot: true
   # runAsUser: 1000
+
+# -- Configure the liveness probe using Deployment probe spec
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 10080
+
+# -- Configure the readiness probe using Deployment probe spec
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: 10080
+
 
 service:
   type: ClusterIP

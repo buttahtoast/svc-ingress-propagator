@@ -36,6 +36,7 @@ spec:
           image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
+            - --enable-leader-election
             - --identifier={{ include "controller.identifier" $ }}
             - --ingress-class={{ .Values.ingressClass.name }}
             - --controller-class={{ include "controller.value" $ }}
@@ -46,12 +47,25 @@ spec:
               {{- with .namespace }}
             - --target-namespace={{ . }}
               {{- end }}
+              {{- with .issuer }}
+                {{- if .name }}
+            - --target-issuer-name={{ .name }}
+                {{- end }}
+              {{- end }}
             {{- end }}
             - --target-kubeconfig=/target-kubeconfig.yaml
           volumeMounts:
           - name: kubeconfig-volume
             mountPath: /target-kubeconfig.yaml
             subPath: {{ .Values.target.kubeconfig.secret.key }}
+          ports:
+          - name: metrics
+            containerPort: 8080
+            protocol: TCP
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12}}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12}}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}

@@ -1,14 +1,13 @@
 package controller
 
-func removeStringFromSlice(finalizers []string, finalizer string) []string {
-	var result []string
-	for _, f := range finalizers {
-		if f != finalizer {
-			result = append(result, f)
-		}
-	}
-	return result
-}
+const WellKnownIngressAnnotation = "kubernetes.io/ingress.class"
+const MetaBase = "ingress-propagator.buttah.cloud"
+
+var LabelManaged = MetaBase + "/managed-by"
+var LabelPropagator = MetaBase + "/propagator"
+
+const IssuerNamespacedAnnotation = "cert-manager.io/issuer"
+const IssuerClusterAnnotation = "cert-manager.io/cluster-issuer"
 
 func stringSliceContains(slice []string, element string) bool {
 	for _, sliceElement := range slice {
