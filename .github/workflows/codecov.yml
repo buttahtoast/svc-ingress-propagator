@@ -14,7 +14,7 @@ jobs:
   integration-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Check secret
         id: checksecret
         uses: oliverbaehler/github-actions/exists@8dfd42735c85f6c58d5d4d6f3232cd0e39d1fe73 # v0.1.0
