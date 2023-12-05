@@ -6,7 +6,7 @@
 identifier: ""
 
 ingressClass:
-  # -- Create IngressClass 
+  # -- Create IngressClass
   create: true
   # -- Ingress class name
   name: propagation

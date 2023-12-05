@@ -3,7 +3,7 @@
 remote: origin
 target-branch: main
 chart-dirs:
-  - helm/
+  - charts/
 chart-repos:
   - buttahtoast=https://buttahtoast.github.io/helm-charts/
   - bitnami=https://charts.bitnami.com/bitnami
