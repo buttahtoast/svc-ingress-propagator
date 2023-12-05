@@ -7,6 +7,7 @@ require (
 	github.com/go-logr/stdr v1.2.2
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.7.0
+	go.uber.org/automaxprocs v1.5.3
 	k8s.io/api v0.28.3
 	k8s.io/apimachinery v0.28.3
 	k8s.io/client-go v0.28.3

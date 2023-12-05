@@ -10,8 +10,13 @@ type Propagation struct {
 	// Propagation Name
 	Name string
 
+	PropagatedName string
+
 	// State if the propagation is deleted on the child cluster
 	IsDeleted bool
+
+	// Origin Ingress
+	Origin networkingv1.Ingress
 
 	// The ingress object associated with the propagation.
 	Ingress networkingv1.Ingress
