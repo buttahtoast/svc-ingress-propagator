@@ -6,6 +6,8 @@
 identifier: ""
 
 ingressClass:
+  # -- Create IngressClass
+  create: true
   # -- Ingress class name
   name: propagation
   # -- Ingress class controller

@@ -29,7 +29,7 @@ jobs:
           registry: ghcr.io
           repository: ${{ github.repository_owner }}/charts
           name: "svc-ingress-propagator"
-          path: "./helm"
+          path: "./charts/svc-ingress-propagator/"
           app-version: ${{ steps.extract_version.outputs.version }}
           version: ${{ steps.extract_version.outputs.version }}
           registry-username: ${{ github.actor }}
