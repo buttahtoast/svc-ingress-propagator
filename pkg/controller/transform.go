@@ -15,6 +15,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
+var (
+	hosts    []string
+	services []v1.Service
+)
+
 func (i *PropagationController) FromIngressToPropagation(ctx context.Context, logger logr.Logger, kubeClient client.Client, ingress networkingv1.Ingress) (propagation.Propagation, error) {
 	result := propagation.Propagation{
 		Name:           ingress.Name,
@@ -48,12 +53,9 @@ func (i *PropagationController) FromIngressToPropagation(ctx context.Context, lo
 
 		result.Ingress.Spec.IngressClassName = &i.Options.TargetIngressClassName
 
-		// Store relevant Services
-		var hosts []string
-		var services []v1.Service
-
-		for r := range ingress.Spec.Rules {
-			rule := &ingress.Spec.Rules[r]
+		result.Ingress.Spec.Rules = ingress.Spec.Rules
+		for r := range result.Ingress.Spec.Rules {
+			rule := &result.Ingress.Spec.Rules[r]
 			if rule.Host == "" {
 				return result, fmt.Errorf("host in ingress %s/%s is empty", ingress.GetNamespace(), ingress.GetName())
 			}
@@ -100,7 +102,6 @@ func (i *PropagationController) FromIngressToPropagation(ctx context.Context, lo
 					},
 				}
 			}
-			result.Ingress.Spec.Rules = append(result.Ingress.Spec.Rules, *rule)
 			hosts = append(hosts, rule.Host)
 		}
 

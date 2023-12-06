@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -45,21 +46,21 @@ func (i *PropagationController) SetupWithManager(ctx context.Context, mgr ctrl.M
 		Complete(i)
 }
 
-func (i *PropagationController) Reconcile(ctx context.Context, request ctrl.Request) (res reconcile.Result, err error) {
+func (i *PropagationController) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
+	log := i.Log.WithValues("ingress", request.NamespacedName)
+	//reconcileStart := time.Now()
+	//reconciliationLoopID := uuid.New().String()
+	//log := ctrl.LoggerFrom(ctx, "reconciliation-loop-id", reconciliationLoopID, "start-time", reconcileStart)
+
 	i.Log.V(3).Info("Reconciling",
 		"ingress", request.NamespacedName,
 	)
-	origin := networkingv1.Ingress{}
-	if err = i.Client.Get(ctx, request.NamespacedName, &origin); err != nil {
-		if apierrors.IsNotFound(err) {
-			i.Log.Error(nil, "Request object not found, could have been deleted after reconcile request")
 
-			return reconcile.Result{}, nil
-		}
-
-		i.Log.Error(err, "Error reading the object")
-
-		return
+	log.V(5).Info("Fetch Ingress Resource")
+	var origin networkingv1.Ingress
+	if err := i.Client.Get(ctx, request.NamespacedName, &origin); err != nil {
+		log.V(1).Error(err, "Unable to fetch ingress")
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	controlled, err := i.isControlledByThisController(ctx, origin)
@@ -81,28 +82,7 @@ func (i *PropagationController) Reconcile(ctx context.Context, request ctrl.Requ
 		}, nil
 	}
 
-	i.Log.V(5).Info("ingress is controlled by this controller",
-		"ingress", request.NamespacedName,
-		"controlled-ingress-class", i.Options.IngressClassName,
-		"controlled-controller-class", i.Options.ControllerClassName,
-	)
-
 	i.Log.V(5).Info("update propagations", "triggered-by", request.NamespacedName)
-
-	if origin.DeletionTimestamp == nil {
-		controllerutil.AddFinalizer(&origin, IngressControllerFinalizer)
-	} else {
-		if !controllerutil.ContainsFinalizer(&origin, IngressControllerFinalizer) {
-			i.Log.V(1).Info("ingress is being deleted and already finillized by this controller",
-				"ingress", request.NamespacedName,
-				"controlled-ingress-class", i.Options.IngressClassName,
-				"controlled-controller-class", i.Options.ControllerClassName,
-			)
-
-			return
-		}
-	}
-
 	propagation, err := i.FromIngressToPropagation(ctx, i.Log, i.Client, origin)
 	if err != nil {
 		i.Recorder.Eventf(&origin, corev1.EventTypeWarning, "PropagationFailed", "failed to extract propagations from ingress: %s", err.Error())
@@ -113,19 +93,33 @@ func (i *PropagationController) Reconcile(ctx context.Context, request ctrl.Requ
 	}
 
 	i.Log.V(5).Info("all propagations", "propagations", propagation.Ingress)
-	err = i.TargetPropagation(ctx, propagation)
-	if err != nil {
-		i.Log.Error(err, "put propagations")
+	if !origin.ObjectMeta.DeletionTimestamp.IsZero() {
+		if controllerutil.ContainsFinalizer(&origin, IngressControllerFinalizer) {
+			err := i.removePropagation(ctx, propagation)
+			if err != nil {
+				return ctrl.Result{}, fmt.Errorf("delete propagations %s", err)
+			}
+			controllerutil.RemoveFinalizer(&origin, IngressControllerFinalizer)
+			if err := i.Client.Update(ctx, &origin); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		// Stop reconciliation as the item is being deleted
+		return ctrl.Result{}, nil
 
-		return reconcile.Result{
-			RequeueAfter: time.Second * 60,
-		}, nil
-	}
-
-	if origin.DeletionTimestamp != nil {
-		controllerutil.RemoveFinalizer(&origin, IngressControllerFinalizer)
+	} else {
+		err := i.putPropagation(ctx, propagation)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("update propagations %s", err)
+		}
+		if !controllerutil.ContainsFinalizer(&origin, IngressControllerFinalizer) {
+			controllerutil.AddFinalizer(&origin, IngressControllerFinalizer)
+			if err := i.Client.Update(ctx, &origin); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
 	}
 
 	i.Log.V(3).Info("Reconcile completed")
-	return
+	return ctrl.Result{}, nil
 }
