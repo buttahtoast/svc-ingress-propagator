@@ -13,21 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func (i *PropagationController) TargetPropagation(ctx context.Context, prop propagation.Propagation) error {
-	if prop.IsDeleted {
-		err := i.removePropagation(ctx, prop)
-		if err != nil {
-			return fmt.Errorf("remove propagation %s", err)
-		}
-	} else {
-		err := i.putPropagation(ctx, prop)
-		if err != nil {
-			return fmt.Errorf("put propagation %s", err)
-		}
-	}
-	return nil
-}
-
 func (i *PropagationController) putPropagation(ctx context.Context, prop propagation.Propagation) error {
 	// Try to update the ingress
 	err := i.TargetClient.Update(ctx, &prop.Ingress)
